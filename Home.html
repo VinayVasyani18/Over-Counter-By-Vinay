@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V Scorer</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: white;
+
+  height: 100vh;
+  overflow: hidden; /* 🚀 NO SCROLL */
+}
+
+.container {
+  width: 100%;
+  max-width: 420px;
+  height: 100vh;
+  margin: auto;
+  padding: 10px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Title */
+h2 {
+  text-align: center;
+  margin: 5px 0;
+}
+
+/* Card */
+.card {
+  background: #1e293b;
+  padding: 12px;
+  border-radius: 16px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+  margin-bottom: 8px;
+}
+
+/* Inputs */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+label {
+  font-size: 13px;
+  margin-bottom: 3px;
+  color: #cbd5f5;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 15px;
+  background: #334155;
+  color: white;
+}
+
+.locked {
+  border: 2px solid #22c55e;
+  opacity: 0.7;
+}
+
+/* Display */
+.display { text-align: center; }
+
+.big {
+  font-size: 26px;
+  font-weight: bold;
+}
+
+.small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Buttons */
+.btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  font-size: 15px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.primary { background: #38bdf8; color: black; }
+.undo { background: #facc15; color: black; }
+.danger { background: #ef4444; }
+
+/* Popup */
+.popup {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background: rgba(0,0,0,0.6);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.hidden { display:none; }
+
+.popup-box {
+  background:#1e293b;
+  padding:18px;
+  border-radius:16px;
+  width:90%;
+  max-width:300px;
+  text-align:center;
+}
+
+.popup-buttons {
+  display:flex;
+  gap:8px;
+  margin-top:12px;
+}
+
+.popup-buttons button {
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+}
+
+.popup-buttons button:first-child { background:#22c55e; }
+.popup-buttons .secondary { background:#ef4444; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>🏏 V Scorer</h2>
+
+<div class="card">
+  <div class="form-group">
+    <label>Max Overs (Maximum Overs - 50)</label>
+    <input type="number" id="maxOvers" value="10" min="1" max="50">
+  </div>
+
+  <div class="form-group">
+    <label>Max Wickets (Maximum Wickets - 13)</label>
+    <input type="number" id="maxWickets" value="10" min="1" max="13">
+  </div>
+</div>
+
+<div class="card display">
+  <div class="small">Overs</div>
+  <div class="big" id="overs">0.0</div>
+
+  <div class="small">Wickets</div>
+  <div class="big" id="wickets">0</div>
+
+  <div class="small">Balls Left</div>
+  <div class="big" id="ballsLeft">6</div>
+</div>
+
+<div class="card">
+  <button class="btn primary" id="ballBtn">➕ Ball</button>
+  <button class="btn primary" id="wicketBtn">❌ Wicket</button>
+</div>
+
+<div class="card">
+  <button class="btn undo" id="undoBtn">Undo</button>
+  <button class="btn danger" id="resetBtn">Reset</button>
+</div>
+
+</div>
+
+<!-- Popup -->
+<div id="popup" class="popup hidden">
+  <div class="popup-box">
+    <h3 id="popupTitle"></h3>
+    <p id="popupMessage"></p>
+    <div class="popup-buttons">
+      <button id="yesBtn">Yes</button>
+      <button id="noBtn" class="secondary">No</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let balls=0, overs=0, wickets=0;
+let history=[];
+let matchLocked=false;
+let popupCallback=null;
+
+const oversEl = document.getElementById("overs");
+const wicketsEl = document.getElementById("wickets");
+const ballsLeft = document.getElementById("ballsLeft");
+const ballBtn = document.getElementById("ballBtn");
+const wicketBtn = document.getElementById("wicketBtn");
+const undoBtn = document.getElementById("undoBtn");
+const resetBtn = document.getElementById("resetBtn");
+const maxOvers = document.getElementById("maxOvers");
+const maxWickets = document.getElementById("maxWickets");
+
+function showPopup(title,msg,cb){
+  popupTitle.innerText=title;
+  popupMessage.innerText=msg;
+  yesBtn.innerText="Yes";
+  noBtn.style.display="block";
+  popup.classList.remove("hidden");
+  popupCallback=cb;
+}
+
+yesBtn.onclick=()=>{popup.classList.add("hidden"); if(popupCallback) popupCallback(true);}
+noBtn.onclick=()=>{popup.classList.add("hidden"); if(popupCallback) popupCallback(false);}
+
+function showAlert(title,msg){
+  popupTitle.innerText=title;
+  popupMessage.innerText=msg;
+  yesBtn.innerText="OK";
+  noBtn.style.display="none";
+  popup.classList.remove("hidden");
+  yesBtn.onclick=()=>{
+    popup.classList.add("hidden");
+    noBtn.style.display="block";
+    yesBtn.innerText="Yes";
+  };
+}
+
+function validateSettings(){
+  let o=parseInt(maxOvers.value);
+  let w=parseInt(maxWickets.value);
+
+  if(o>50 || w>13 || o<1 || w<1){
+    showAlert("Invalid Match Settings","Overs: 1–50, Wickets: 1–13 allowed.");
+    return false;
+  }
+  return true;
+}
+
+function disableInputs(){
+  maxOvers.disabled=true;
+  maxWickets.disabled=true;
+  maxOvers.classList.add("locked");
+  maxWickets.classList.add("locked");
+}
+function enableInputs(){
+  maxOvers.disabled=false;
+  maxWickets.disabled=false;
+  maxOvers.classList.remove("locked");
+  maxWickets.classList.remove("locked");
+}
+
+function disableButtons(){
+  ballBtn.disabled=true;
+  wicketBtn.disabled=true;
+  resetBtn.disabled=true;
+}
+function enableButtons(){
+  ballBtn.disabled=false;
+  wicketBtn.disabled=false;
+  resetBtn.disabled=false;
+}
+
+function update(){
+  oversEl.innerText=overs+"."+balls;
+  wicketsEl.innerText=wickets;
+  ballsLeft.innerText=6-balls;
+}
+
+function checkFirstBall(){
+  if(overs===0 && balls===1) disableInputs();
+}
+
+function endInnings(){
+  showPopup("End Innings","End the innings?",yes=>{
+    if(yes){
+      balls=0; overs=0; wickets=0;
+      history=[];
+      matchLocked=false;
+      enableInputs();
+      enableButtons();
+      update();
+    } else {
+      matchLocked=true;
+      disableButtons();
+    }
+  });
+}
+
+function checkEnd(){
+  if(wickets>=parseInt(maxWickets.value)) endInnings();
+  if(overs>=parseInt(maxOvers.value)) endInnings();
+}
+
+function save(){ history.push({balls,overs,wickets}); }
+
+function addBall(){
+  if(matchLocked) return;
+  if(overs===0 && balls===0 && !validateSettings()) return;
+
+  save();
+  balls++;
+  checkFirstBall();
+
+  if(balls===6){ overs++; balls=0; }
+
+  checkEnd();
+  update();
+}
+
+function addWicket(){
+  if(matchLocked) return;
+  if(overs===0 && balls===0 && !validateSettings()) return;
+
+  showPopup("Wicket","Count ball?",count=>{
+    save();
+    wickets++;
+
+    if(count){
+      balls++;
+      checkFirstBall();
+      if(balls===6){ overs++; balls=0; }
+    }
+
+    checkEnd();
+    update();
+  });
+}
+
+function undo(){
+  if(history.length>0){
+    let last=history.pop();
+    balls=last.balls;
+    overs=last.overs;
+    wickets=last.wickets;
+
+    matchLocked=false;
+    enableButtons();
+
+    if(overs===0 && balls===0) enableInputs();
+
+    update();
+  }
+}
+
+function resetMatch(){
+  showPopup("Reset Match","Are you sure?",yes=>{
+    if(yes){
+      balls=overs=wickets=0;
+      history=[];
+      matchLocked=false;
+      enableInputs();
+      enableButtons();
+      update();
+    }
+  });
+}
+
+ballBtn.onclick = addBall;
+wicketBtn.onclick = addWicket;
+undoBtn.onclick = undo;
+resetBtn.onclick = resetMatch;
+
+update();
+</script>
+
+</body>
+</html>
